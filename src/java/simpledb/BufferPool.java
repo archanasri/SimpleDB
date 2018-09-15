@@ -1,6 +1,7 @@
 package simpledb;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -27,7 +28,7 @@ public class BufferPool {
 
     private int miNumPages;
     
-    private Map<Integer, Page> mmapPages;
+    private Map<PageId, Page> mmapPages;
     
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -36,6 +37,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
     	miNumPages = numPages;
+    	mmapPages = new HashMap<>();
     }
     
     public static int getPageSize() {
@@ -69,8 +71,21 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-    	//TODO
-        return null;
+    	
+    	if(mmapPages.containsKey(pid))
+    		return mmapPages.get(pid);
+    	
+    	if(mmapPages.size() >= miNumPages)
+    	{
+    		//Insufficient space in Bufferpool
+    		throw new DbException("Insufficient space in Bufferpool");
+    	}
+    	
+    	//There is space. Get Page and add to map.
+    	Page lPage = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+    	mmapPages.put(pid, lPage);
+    	
+        return lPage;
     }
 
     /**
