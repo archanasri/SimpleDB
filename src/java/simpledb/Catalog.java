@@ -4,7 +4,12 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NoSuchElementException;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -18,12 +23,21 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Catalog {
 
+	private Map<Integer, DbFile> mmapIdTable;
+	private Map<Integer, String> mmapIdTableName;
+	private Map<Integer, String> mmapIdPrimaryKey;
+	
+//	private Map<String, DbFile> mmapTableCatalog;
+//	private Map<String, String> mmapKeyCatalog;
+	
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        // some code goes here
+    	mmapIdTable = new ConcurrentHashMap<>();
+    	mmapIdTableName = new ConcurrentHashMap<>();
+    	mmapIdPrimaryKey = new ConcurrentHashMap<>();
     }
 
     /**
@@ -36,7 +50,35 @@ public class Catalog {
      * @param pkeyField the name of the primary key field
      */
     public void addTable(DbFile file, String name, String pkeyField) {
-        // some code goes here
+        
+    	//First check if table with passed name already exists.
+    	//	- if it does, get tableid and remove from all maps
+    	//Add normally again.
+    	
+    	boolean lbTableExists = true;
+    	int tableid = 0;
+    	
+    	try 
+    	{
+    		tableid = getTableId(name);
+    	}catch(NoSuchElementException e)
+    	{
+    		lbTableExists = false;
+    	}
+    	
+    	if(lbTableExists)
+    	{
+    		mmapIdTable.remove(tableid);
+    		mmapIdTableName.remove(tableid);
+    		mmapIdPrimaryKey.remove(tableid);
+    	}
+    	
+    	tableid = file.getId();
+    	
+    	mmapIdTable.put(tableid, file);
+		mmapIdTableName.put(tableid, name);
+		mmapIdPrimaryKey.put(tableid, pkeyField);
+    	
     }
 
     public void addTable(DbFile file, String name) {
@@ -59,8 +101,16 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
-        // some code goes here
-        return 0;
+        
+    	for(Entry<Integer, String> lEntry : mmapIdTableName.entrySet())
+    	{
+    		if(lEntry.getValue().equals(name))
+    		{
+    			return lEntry.getKey();
+    		}
+    	}
+    	
+    	throw new NoSuchElementException("Catalog::getTableId: table with name '" + name + "' does not exist.");
     }
 
     /**
@@ -70,8 +120,9 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
-        // some code goes here
-        return null;
+        
+    	DbFile table = getDatabaseFile(tableid);
+    	return table.getTupleDesc();
     }
 
     /**
@@ -81,28 +132,36 @@ public class Catalog {
      *     function passed to addTable
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
-        // some code goes here
-        return null;
+        if(mmapIdTable.containsKey(tableid) == false)
+        	throw new NoSuchElementException("Catalog::getDatabaseFile: table with id '" + tableid + "' does not exist." );
+        
+        return mmapIdTable.get(tableid);
+        	
     }
 
     public String getPrimaryKey(int tableid) {
-        // some code goes here
-        return null;
+    	if(mmapIdPrimaryKey.containsKey(tableid) == false)
+    		throw new NoSuchElementException("Catalog::getPrimaryKey: table with id '" + tableid + "' does not exist." );
+        
+        return mmapIdPrimaryKey.get(tableid);
     }
 
     public Iterator<Integer> tableIdIterator() {
-        // some code goes here
-        return null;
+        return mmapIdTable.keySet().iterator();
     }
 
-    public String getTableName(int id) {
-        // some code goes here
-        return null;
+    public String getTableName(int tableid) {
+    	if(mmapIdTableName.containsKey(tableid) == false)
+    		throw new NoSuchElementException("Catalog::getPrimaryKey: table with id '" + tableid + "' does not exist." );
+        
+        return mmapIdTableName.get(tableid);
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
-        // some code goes here
+        mmapIdTable.clear();
+        mmapIdTableName.clear();
+        mmapIdPrimaryKey.clear();
     }
     
     /**
