@@ -5,12 +5,12 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The Catalog keeps track of all available tables in the database and their
@@ -27,17 +27,14 @@ public class Catalog {
 	private Map<Integer, String> mmapIdTableName;
 	private Map<Integer, String> mmapIdPrimaryKey;
 	
-//	private Map<String, DbFile> mmapTableCatalog;
-//	private Map<String, String> mmapKeyCatalog;
-	
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-    	mmapIdTable = new ConcurrentHashMap<>();
-    	mmapIdTableName = new ConcurrentHashMap<>();
-    	mmapIdPrimaryKey = new ConcurrentHashMap<>();
+    	mmapIdTable = new HashMap<>();
+    	mmapIdTableName = new HashMap<>();
+    	mmapIdPrimaryKey = new HashMap<>();
     }
 
     /**

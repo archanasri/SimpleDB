@@ -114,9 +114,9 @@ public class HeapFile implements DbFile {
      */
     public int numPages() {
     	
-    	double ldFileSize = mFile.length();
-        double ldPageSize = BufferPool.getPageSize();
-        return (int)Math.ceil(ldFileSize/ldPageSize);
+    	int ldFileSize = (int) mFile.length();
+        int ldPageSize = BufferPool.getPageSize();
+        return ldFileSize/ldPageSize;
     	
     }
 
@@ -138,8 +138,7 @@ public class HeapFile implements DbFile {
 
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
-        //TODO
-    	return new HeapFileIterator(this, tid);
+        return new HeapFileIterator(this, tid);
     }
     
     class HeapFileIterator implements DbFileIterator{

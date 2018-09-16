@@ -28,8 +28,6 @@ public class Tuple implements Serializable {
      */
     public Tuple(TupleDesc td) {
     	mTupleDesc = td;
-    	
-    	//TODO
     	mlistFields = new ArrayList<>();
     }
 

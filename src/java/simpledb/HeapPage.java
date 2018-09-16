@@ -1,7 +1,15 @@
 package simpledb;
 
-import java.util.*;
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
  * Each instance of HeapPage stores data for one page of HeapFiles and 
@@ -67,7 +75,7 @@ public class HeapPage implements Page {
     */
     private int getNumTuples() {        
         // some code goes here
-    	return (int)Math.floor((BufferPool.getPageSize() * 8) / (td.getSize() * 8 + 1));
+    	return (BufferPool.getPageSize() * 8) / (td.getSize() * 8 + 1);
     }
 
     /**
@@ -76,7 +84,7 @@ public class HeapPage implements Page {
      */
     private int getHeaderSize() {        
         // some code goes here
-    	return (int)Math.ceil(numSlots / 8);
+    	return (int)Math.ceil(getNumTuples() / 8.0);
     }
     
     /** Return a view of this page before it was modified
