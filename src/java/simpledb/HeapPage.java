@@ -279,13 +279,21 @@ public class HeapPage implements Page {
      */
     public int getNumEmptySlots() {
         // some code goes here
-    	int slots = 0;
-    	for (int i=0; i <tuples.length; i++) {
-    		if (tuples[i] == null) {
-    			slots++;
-    		}
+//    	int slots = 0;
+//    	for (int i=0; i <tuples.length; i++) {
+//    		if (tuples[i] == null) {
+//    			slots++;
+//    		}
+//    	}
+//        return slots;
+		
+    	int count=0;
+    	for(int i=0; i<numSlots; i++)
+    	{
+    		if(isSlotUsed(i) == false)
+    			count++;
     	}
-        return slots;
+    	return count;
     }
 
     /**
@@ -293,10 +301,22 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         // some code goes here
-    	if (tuples[i] != null) {
-    		return true;
-    	}
-        return false;
+//    	if (tuples[i] != null) {
+//    		return true;
+//    	}
+//        return false;
+    	
+    	if (i >= numSlots) {
+            return false;
+        }
+    	
+    	int liByteNumber = i/8;
+    	int liOffset = i%8;
+    	
+    	byte lReqByte = header[liByteNumber];
+    	
+    	return (lReqByte & (byte)(0x1 << liOffset)) != 0;
+    	
     }
 
     /**
