@@ -1,7 +1,10 @@
 package simpledb;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +33,9 @@ public class BufferPool {
     
     private Map<PageId, Page> mmapPages;
     
+    //Using FIFO approach for Eviction Policy
+    private Deque<PageId> mPidQueue;
+    
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -38,6 +44,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
     	miNumPages = numPages;
     	mmapPages = new HashMap<>();
+    	mPidQueue = new LinkedList<>();
     }
     
     public static int getPageSize() {
@@ -78,12 +85,14 @@ public class BufferPool {
     	if(mmapPages.size() >= miNumPages)
     	{
     		//Insufficient space in Bufferpool
-    		throw new DbException("Insufficient space in Bufferpool");
+    		//throw new DbException("Insufficient space in Bufferpool");
+    		evictPage();
     	}
     	
     	//There is space. Get Page and add to map.
     	Page lPage = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
     	mmapPages.put(pid, lPage);
+    	mPidQueue.addLast(pid);
     	
         return lPage;
     }
@@ -149,8 +158,16 @@ public class BufferPool {
      */
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        
+    	DbFile lTable = Database.getCatalog().getDatabaseFile(tableId);
+    	List<Page> lPages = lTable.insertTuple(tid, t);
+    	
+    	for(Page lPage : lPages)
+    	{
+    		lPage.markDirty(true, tid);
+    		mmapPages.put(lPage.getId(), lPage);
+    	}
+    	
     }
 
     /**
@@ -168,8 +185,16 @@ public class BufferPool {
      */
     public  void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        
+    	DbFile lTable = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId());
+    	List<Page> lPages = lTable.deleteTuple(tid, t);
+    	
+    	for(Page lPage : lPages)
+    	{
+    		lPage.markDirty(true, tid);
+    		mmapPages.put(lPage.getId(), lPage);
+    	}
+    	
     }
 
     /**
@@ -178,9 +203,13 @@ public class BufferPool {
      *     break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // some code goes here
-        // not necessary for lab1
 
+    	// flushAllPages should call flushPage on all pages in the BufferPool
+    	for(PageId pid : mmapPages.keySet())
+    	{
+    		flushPage(pid);
+    	}
+    	
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -201,8 +230,10 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+
+    	// flushPage should write any dirty page to disk and mark it as not dirty, while leaving it in the BufferPool
+    	Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(mmapPages.get(pid));
+    	
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -217,8 +248,26 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        
+    	// The only method which should remove page from the buffer pool is evictPage, 
+    	// which should call flushPage on any dirty page it evicts.
+    	
+    	PageId pid = mPidQueue.pollFirst();
+    	
+    	if(pid != null)
+    	{
+    		try 
+    		{
+				flushPage(pid);
+				mmapPages.remove(pid);
+			} 
+    		catch (IOException e) 
+    		{
+				throw new DbException("Error while writing page to disk.");
+			}
+    		
+    	}
+    	
     }
 
 }
