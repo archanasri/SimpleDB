@@ -1,8 +1,16 @@
 package simpledb;
 
-import java.io.*;
-import java.util.*;
-import java.nio.channels.FileChannel;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import simpledb.Predicate.Op;
 
@@ -195,8 +203,50 @@ public class BTreeFile implements DbFile {
 	private BTreeLeafPage findLeafPage(TransactionId tid, HashMap<PageId, Page> dirtypages, BTreePageId pid, Permissions perm,
 			Field f) 
 					throws DbException, TransactionAbortedException {
-		// some code goes here
-        return null;
+		// You can assume that only leaf and internal pages will be passed to this function.
+		
+		// Base Case : When the passed-in BTreePageId has pgcateg() equal to BTreePageId.LEAF, 
+		// indicating that it is a leaf page. In this case, you should just fetch the page from the buffer pool and return it.
+		
+		if(pid.pgcateg() == BTreePageId.LEAF)
+			return (BTreeLeafPage) getPage(tid, dirtypages, pid, perm);
+		
+		BTreeInternalPage internalPage = (BTreeInternalPage) getPage(tid, dirtypages, pid, Permissions.READ_ONLY);
+		Iterator<BTreeEntry> iterator = internalPage.iterator();
+		
+		BTreeEntry currentEntry = null;
+		if(iterator.hasNext())
+		{
+			currentEntry = iterator.next();
+		}
+		else
+		{
+			throw new DbException("Internal Page is empty");
+		}
+		
+		BTreePageId nextPageId = null;
+		if(f == null)
+		{
+			nextPageId = currentEntry.getLeftChild();
+		}
+		else
+		{
+			while(f.compare(Op.GREATER_THAN, currentEntry.getKey()) && iterator.hasNext())
+			{
+				currentEntry = iterator.next();
+			}
+			
+			if(f.compare(Op.LESS_THAN_OR_EQ, currentEntry.getKey()))
+			{
+				nextPageId = currentEntry.getLeftChild();
+			}
+			else
+			{
+				nextPageId = currentEntry.getRightChild();
+			}
+		}
+		
+        return findLeafPage(tid, dirtypages, nextPageId, perm, f);
 	}
 	
 	/**

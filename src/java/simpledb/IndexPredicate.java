@@ -10,6 +10,9 @@ public class IndexPredicate implements Serializable {
 	
     private static final long serialVersionUID = 1L;
 	
+    private Field mField;
+    private Predicate.Op mOp;
+    
     /**
      * Constructor.
      *
@@ -20,17 +23,16 @@ public class IndexPredicate implements Serializable {
      * @see Predicate
      */
     public IndexPredicate(Predicate.Op op, Field fvalue) {
-        // some code goes here
+       this.mOp = op;
+       this.mField = fvalue;
     }
 
     public Field getField() {
-        // some code goes here
-        return null;
+        return mField;
     }
 
     public Predicate.Op getOp() {
-        // some code goes here
-        return null;
+    	return mOp;
     }
 
     /** Return true if the fieldvalue in the supplied predicate
@@ -39,7 +41,12 @@ public class IndexPredicate implements Serializable {
         @param ipd The field to compare against.
     */
     public boolean equals(IndexPredicate ipd) {
-        // some code goes here
+        if(ipd == null)
+        	return false;
+        
+        if(ipd.mField.equals(mField) && ipd.mOp.equals(mOp))
+        	return true;
+        
         return false;
     }
 
