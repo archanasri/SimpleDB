@@ -290,16 +290,55 @@ public class BTreeFile implements DbFile {
 	 */
 	protected BTreeLeafPage splitLeafPage(TransactionId tid, HashMap<PageId, Page> dirtypages, BTreeLeafPage page, Field field) 
 			throws DbException, IOException, TransactionAbortedException {
-		// some code goes here
-        //
+		
         // Split the leaf page by adding a new page on the right of the existing
 		// page and moving half of the tuples to the new page.  Copy the middle key up
 		// into the parent page, and recursively split the parent as needed to accommodate
 		// the new entry.  getParentWithEmtpySlots() will be useful here.  Don't forget to update
 		// the sibling pointers of all the affected leaf pages.  Return the page into which a 
 		// tuple with the given key field should be inserted.
-        return null;
 		
+		BTreeLeafPage lNewPage = (BTreeLeafPage) getEmptyPage(tid, dirtypages, BTreePageId.LEAF);
+		lNewPage.setLeftSiblingId(page.pid);
+		lNewPage.setRightSiblingId(page.getRightSiblingId());
+
+		if(lNewPage.getRightSiblingId() != null)
+		{
+			BTreeLeafPage lRighSibling = (BTreeLeafPage)getPage(tid, dirtypages, page.getRightSiblingId(), Permissions.READ_WRITE);
+			lRighSibling.setLeftSiblingId(lNewPage.getId());
+		}
+
+		page.setRightSiblingId(lNewPage.pid);
+		
+		//Move tuples to new page
+		int numTuples = page.getNumTuples()/2;
+		Iterator<Tuple> iterator = page.reverseIterator();
+		
+		//Might need a stack.
+		while(numTuples-- > 0)
+		{
+			Tuple lTuple = iterator.next();
+			page.deleteTuple(lTuple);
+			lNewPage.insertTuple(lTuple);
+		}
+		
+		//Get the last tuple in old Page
+		Field lFieldToBeCopied = page.reverseIterator().next().getField(keyField);
+		
+		BTreeInternalPage lParent = getParentWithEmptySlots(tid, dirtypages, page.getParentId(), lFieldToBeCopied);
+		
+		// Set up parent and sibling links
+		page.setParentId(lParent.pid);
+		lNewPage.setParentId(lParent.pid);
+		
+		BTreeEntry lEntry = new BTreeEntry(lFieldToBeCopied, page.pid, lNewPage.pid);
+		lParent.insertEntry(lEntry);
+		
+		// Return the page into which a tuple with the given key field should be inserted.
+		if(field.compare(Op.LESS_THAN_OR_EQ, lFieldToBeCopied))
+            return page;
+        else
+            return lNewPage;
 	}
 	
 	/**
@@ -327,8 +366,41 @@ public class BTreeFile implements DbFile {
 	protected BTreeInternalPage splitInternalPage(TransactionId tid, HashMap<PageId, Page> dirtypages, 
 			BTreeInternalPage page, Field field) 
 					throws DbException, IOException, TransactionAbortedException {
-		// some code goes here
-		return null;
+
+		BTreeInternalPage lNewPage = (BTreeInternalPage) getEmptyPage(tid, dirtypages, BTreePageId.INTERNAL);
+		
+		//Move tuples to new page
+		int numTuples = page.getNumEntries()/2;
+		Iterator<BTreeEntry> iterator = page.reverseIterator();
+		
+		//Might need a stack.
+		while(numTuples-- > 0)
+		{
+			BTreeEntry lEntry = iterator.next();
+			page.deleteKeyAndRightChild(lEntry);	
+			lNewPage.insertEntry(lEntry);
+		}
+		
+		//Get the last entry on old page
+		BTreeEntry lEntryToPushUp = iterator.next();
+		page.deleteKeyAndRightChild(lEntryToPushUp);
+
+		//Update parent pointers of all the child pages that were relinked.
+		updateParentPointers(tid, dirtypages, page);
+		updateParentPointers(tid, dirtypages, lNewPage);
+		
+		BTreeInternalPage lParent = getParentWithEmptySlots(tid, dirtypages, page.getParentId(), lEntryToPushUp.getKey());
+		page.setParentId(lParent.getId());
+		lNewPage.setParentId(lParent.getId());
+
+		lEntryToPushUp.setLeftChild(page.getId());
+        lEntryToPushUp.setRightChild(lNewPage.getId());
+        lParent.insertEntry(lEntryToPushUp);
+		
+        if(field.compare(Op.LESS_THAN_OR_EQ, lEntryToPushUp.getKey()))
+            return page;
+        else
+            return lNewPage;
 	}
 	
 	/**
