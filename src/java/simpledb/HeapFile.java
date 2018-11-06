@@ -171,7 +171,7 @@ public class HeapFile implements DbFile {
     	RecordId lRid = t.getRecordId();
     	PageId lPid = lRid.getPageId();
     	
-    	if(lPid.getTableId() == getId())
+    	if(lPid.getTableId() != getId())
     	{
     		throw new DbException("Tuple does not belong to this table.");
     	}
