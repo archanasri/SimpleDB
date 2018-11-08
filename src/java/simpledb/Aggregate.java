@@ -1,6 +1,10 @@
 package simpledb;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+import simpledb.TupleDesc.TDItem;
 
 /**
  * The Aggregation operator that computes an aggregate (e.g., sum, avg, max,
@@ -10,7 +14,16 @@ import java.util.*;
 public class Aggregate extends Operator {
 
     private static final long serialVersionUID = 1L;
-
+    
+    private DbIterator mChild;
+    private int miAggField;
+    private int miGBField;
+    private Aggregator.Op mAggOp;
+    
+    private Type mGBfieldtype;
+    private Aggregator mAggregator;
+    private DbIterator mAggDBIterator;
+    
     /**
      * Constructor.
      * 
@@ -30,7 +43,22 @@ public class Aggregate extends Operator {
      *            The aggregation operator to use
      */
     public Aggregate(DbIterator child, int afield, int gfield, Aggregator.Op aop) {
-	// some code goes here
+    	
+    	mChild = child;
+    	miAggField = afield;
+    	miGBField = gfield;
+    	mAggOp = aop;
+    	
+    	if(miGBField != Aggregator.NO_GROUPING)
+    		mGBfieldtype = mChild.getTupleDesc().getFieldType(miGBField);
+    	
+    	if(mChild.getTupleDesc().getFieldType(miAggField) == Type.INT_TYPE)
+    	{
+    		mAggregator = new IntegerAggregator(miGBField, mGBfieldtype, afield, mAggOp);
+    	}
+    	else
+    		mAggregator = new StringAggregator(miGBField, mGBfieldtype, afield, mAggOp);
+    	
     }
 
     /**
@@ -39,8 +67,7 @@ public class Aggregate extends Operator {
      *         {@link simpledb.Aggregator#NO_GROUPING}
      * */
     public int groupField() {
-	// some code goes here
-	return -1;
+    	return miGBField;
     }
 
     /**
@@ -48,17 +75,18 @@ public class Aggregate extends Operator {
      *         of the groupby field in the <b>OUTPUT</b> tuples If not, return
      *         null;
      * */
-    public String groupFieldName() {
-	// some code goes here
-	return null;
+    public String groupFieldName() 
+    {
+    	if(miGBField != Aggregator.NO_GROUPING)
+    		return mChild.getTupleDesc().getFieldName(miGBField);
+    	return null;
     }
 
     /**
      * @return the aggregate field
      * */
     public int aggregateField() {
-	// some code goes here
-	return -1;
+    	return miAggField;
     }
 
     /**
@@ -66,25 +94,35 @@ public class Aggregate extends Operator {
      *         tuples
      * */
     public String aggregateFieldName() {
-	// some code goes here
-	return null;
+    	return mChild.getTupleDesc().getFieldName(miAggField);
     }
 
     /**
      * @return return the aggregate operator
      * */
     public Aggregator.Op aggregateOp() {
-	// some code goes here
-	return null;
+    	return mAggOp;
     }
 
     public static String nameOfAggregatorOp(Aggregator.Op aop) {
-	return aop.toString();
+    	return aop.toString();
     }
 
     public void open() throws NoSuchElementException, DbException,
 	    TransactionAbortedException {
-	// some code goes here
+    	
+    	mChild.open();
+        while(mChild.hasNext())
+        {
+            mAggregator.mergeTupleIntoGroup(mChild.next());
+        }
+        mChild.close();
+        
+        mAggDBIterator = mAggregator.iterator();
+        mAggDBIterator.open();
+	    
+        super.open();
+    	
     }
 
     /**
@@ -95,12 +133,14 @@ public class Aggregate extends Operator {
      * aggregate. Should return null if there are no more tuples.
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-	// some code goes here
-	return null;
+    	if(mAggDBIterator.hasNext())
+    		return mAggDBIterator.next();
+    	
+    	return null;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-	// some code goes here
+    	mAggDBIterator.rewind();
     }
 
     /**
@@ -115,23 +155,37 @@ public class Aggregate extends Operator {
      * iterator.
      */
     public TupleDesc getTupleDesc() {
-	// some code goes here
-	return null;
+    	
+    	List<TDItem> lList = new ArrayList<>();
+    	
+    	String laggString = mAggOp.toString() + "(" + aggregateFieldName() + ")";
+    	
+    	TDItem lAggItem = new TDItem(Type.INT_TYPE, null);
+    	
+    	if(miGBField != Aggregator.NO_GROUPING)
+    	{
+    		TDItem lGBItem = new TDItem(mGBfieldtype, aggregateFieldName());
+    		lList.add(lGBItem);
+    	}
+    	
+    	lList.add(lAggItem);
+    	
+    	return new TupleDesc(lList);
     }
 
     public void close() {
-	// some code goes here
+    	super.close();
+    	mAggDBIterator.close();
     }
 
     @Override
     public DbIterator[] getChildren() {
-	// some code goes here
-	return null;
+    	return new DbIterator[] {mAggDBIterator};
     }
 
     @Override
     public void setChildren(DbIterator[] children) {
-	// some code goes here
+    	mAggDBIterator = children[0];
     }
     
 }
