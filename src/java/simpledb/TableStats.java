@@ -66,6 +66,12 @@ public class TableStats {
      */
     static final int NUM_HIST_BINS = 100;
 
+    private int miNumTuples, miIOCostPerPage, miTableId;
+
+    private HashMap<Integer, Object> mHistMap = new HashMap<Integer, Object>();
+    private HashMap<Integer, Integer> mMaxMap = new HashMap<Integer,Integer>();
+    private HashMap<Integer, Integer> mMinMap = new HashMap<Integer,Integer>();
+    
     /**
      * Create a new TableStats object, that keeps track of statistics on each
      * column of a table
@@ -85,6 +91,89 @@ public class TableStats {
         // necessarily have to (for example) do everything
         // in a single scan of the table.
         // some code goes here
+    	
+    	//TODO
+    	
+    	this.miTableId = tableid;
+        this.miIOCostPerPage = ioCostPerPage;
+        
+        TransactionId tid = new TransactionId();
+        SeqScan lSeqscan = new SeqScan(tid, tableid, "Stats");
+        TupleDesc lTupleDesc = lSeqscan.getTupleDesc();
+        
+        int lNumFields = lTupleDesc.numFields();
+        for (int i = 0 ; i < lNumFields; i++)
+        {
+            mMinMap.put(i,Integer.MAX_VALUE);
+            mMaxMap.put(i,Integer.MIN_VALUE);
+        }
+        
+        try{
+            lSeqscan.open();
+            
+            //Calculate min max
+            while(lSeqscan.hasNext())
+            {
+                Tuple lTuple = lSeqscan.next();
+                this.miNumTuples++;
+                
+                for(int i = 0 ; i < lNumFields ; i++)
+                {
+                    if(lTupleDesc.getFieldType(i) == Type.INT_TYPE)
+                    {
+                        Field f = lTuple.getField(i);
+                        int v = ((IntField)f).getValue();
+                        
+                        if(v > mMaxMap.get(i))
+                        	mMaxMap.put(i,v);
+                        
+                        if(v < mMinMap.get(i))
+                        	mMinMap.put(i,v);
+                    }
+                }
+            }
+            
+            //Create histograms
+            for(int i = 0 ; i < lNumFields; i++)
+            {
+                if(lTupleDesc.getFieldType(i) == Type.INT_TYPE)
+                	mHistMap.put(i, new IntHistogram(NUM_HIST_BINS, mMinMap.get(i), mMaxMap.get(i)));
+            	else
+            		mHistMap.put(i, new StringHistogram(NUM_HIST_BINS));
+            }
+            
+            //Build histograms
+            lSeqscan.rewind();
+            
+            while(lSeqscan.hasNext())
+            {
+                Tuple lTuple = lSeqscan.next();
+                
+                for(int i = 0; i < lNumFields; i++)
+                {
+                    if(lTupleDesc.getFieldType(i) == Type.INT_TYPE)
+                    {
+                        IntHistogram lIHist = (IntHistogram) mHistMap.get(i);
+                        lIHist.addValue(((IntField)(lTuple.getField(i))).getValue());
+                    }
+                    else
+                    {
+                        StringHistogram lSHist = (StringHistogram) mHistMap.get(i);
+                        lSHist.addValue(((StringField)(lTuple.getField(i))).getValue());
+                    }
+                }
+            }
+            lSeqscan.close();
+        }
+        catch (DbException e) 
+        {
+            e.printStackTrace();
+        }
+        catch (TransactionAbortedException e) 
+        {
+            e.printStackTrace();
+        }
+    	
     }
 
     /**
@@ -100,8 +189,10 @@ public class TableStats {
      * @return The estimated cost of scanning the table.
      */
     public double estimateScanCost() {
-        // some code goes here
-        return 0;
+        
+    	int liNumPages = ((HeapFile)(Database.getCatalog().getDatabaseFile(miTableId))).numPages();
+        return liNumPages * miIOCostPerPage;
+        
     }
 
     /**
@@ -114,8 +205,8 @@ public class TableStats {
      *         selectivityFactor
      */
     public int estimateTableCardinality(double selectivityFactor) {
-        // some code goes here
-        return 0;
+    	
+    	return (int)(miNumTuples * selectivityFactor);
     }
 
     /**
@@ -129,7 +220,7 @@ public class TableStats {
      * expected selectivity. You may estimate this value from the histograms.
      * */
     public double avgSelectivity(int field, Predicate.Op op) {
-        // some code goes here
+    	// some code goes here
         return 1.0;
     }
 
@@ -147,16 +238,23 @@ public class TableStats {
      *         predicate
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
-        // some code goes here
-        return 1.0;
+    	
+    	double result = 0;
+        
+    	if(constant.getType() == Type.INT_TYPE)
+        	result = ((IntHistogram)(mHistMap.get(field))).estimateSelectivity(op, ((IntField)(constant)).getValue());
+    	else
+    		result = ((StringHistogram)(mHistMap.get(field))).estimateSelectivity(op, ((StringField)(constant)).getValue());
+        
+        return result;
     }
 
     /**
      * return the total number of tuples in this table
      * */
     public int totalTuples() {
-        // some code goes here
-        return 0;
+    	
+    	return miNumTuples;
     }
 
 }
