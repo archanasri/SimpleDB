@@ -1,9 +1,20 @@
 package simpledb;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.Vector;
 
-import javax.swing.*;
-import javax.swing.tree.*;
+import javax.swing.ImageIcon;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JScrollPane;
+import javax.swing.JTree;
+import javax.swing.WindowConstants;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
 
 /**
  * The JoinOptimizer class is responsible for ordering a series of joins
@@ -107,11 +118,10 @@ public class JoinOptimizer {
             // You do not need to implement proper support for these for Lab 4.
             return card1 + cost1 + cost2;
         } else {
-            // Insert your code here.
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+        	return cost1 + card1 * cost2 + card1 * card2;
         }
     }
 
@@ -156,7 +166,35 @@ public class JoinOptimizer {
             boolean t2pkey, Map<String, TableStats> stats,
             Map<String, Integer> tableAliasToId) {
         int card = 1;
-        // some code goes here
+        
+        if (joinOp == Predicate.Op.EQUALS) 
+        {
+            if(t1pkey && t2pkey)
+            {
+            	card = Math.min(card1, card2);
+            } 
+            else if(t1pkey)
+            {
+            	// when one of the attributes is a primary key, the number of tuples produced by the join cannot be larger 
+            	// than the cardinality of the non-primary key attribute.
+                card = card2;
+            } 
+            else if(t2pkey)
+            {
+            	// when one of the attributes is a primary key, the number of tuples produced by the join cannot be larger 
+            	// than the cardinality of the non-primary key attribute.
+                card = card1;
+            } 
+            else 
+            {
+            	//It's fine to make up a simple heuristic (say, the size of the larger of the two tables).
+                card = Math.max(card1, card2);
+            }
+        } else {
+            // range search
+            card = (int) (card1 * card2 *0.3);
+        }
+        
         return card <= 0 ? 1 : card;
     }
 
@@ -217,11 +255,43 @@ public class JoinOptimizer {
             HashMap<String, TableStats> stats,
             HashMap<String, Double> filterSelectivities, boolean explain)
             throws ParsingException {
-        //Not necessary for labs 1--3
 
-        // some code goes here
-        //Replace the following
-        return joins;
+    	PlanCache lPlanCache = new PlanCache();
+        int liNumOfJoins = joins.size();
+        
+        for (int i = 1; i <= liNumOfJoins; i++) 
+        {
+            Set<Set<LogicalJoinNode>> lAllSubsets = enumerateSubsets(joins, i);
+            for (Set<LogicalJoinNode> lInnerSet : lAllSubsets) 
+            {
+                double ldBestcost = Double.MAX_VALUE;
+                CostCard lBestPlan = null;
+                for (LogicalJoinNode subPlan : lInnerSet) 
+                {
+                    CostCard lCost = computeCostAndCardOfSubplan(stats, filterSelectivities, subPlan, lInnerSet, ldBestcost, lPlanCache);
+                    if (lCost != null) 
+                    {
+                        if (lCost.cost < ldBestcost || lBestPlan == null) 
+                        {
+                            ldBestcost = lCost.cost;
+                            lBestPlan = lCost;
+                        }
+                        lPlanCache.addPlan(lInnerSet, ldBestcost, lBestPlan.card, lBestPlan.plan);
+                    }
+                }
+            }
+        }
+
+        Set<LogicalJoinNode> finalSet = this.enumerateSubsets(this.joins, liNumOfJoins).iterator().next();
+        Vector<LogicalJoinNode> orderOfJoins = lPlanCache.bestOrders.get(finalSet);
+        
+        if (explain) 
+        {
+            printJoins(orderOfJoins, lPlanCache, stats, filterSelectivities);
+        }
+        
+        return orderOfJoins;
+    	
     }
 
     // ===================== Private Methods =================================

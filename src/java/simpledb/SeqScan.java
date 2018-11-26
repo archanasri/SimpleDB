@@ -40,8 +40,6 @@ public class SeqScan implements DbIterator {
         DbFile lDBFile = Database.getCatalog().getDatabaseFile(miTableId);
         mIterator = lDBFile.iterator(mTransactionId);
         
-//        if(mstrTableAlias == null)
-//        	mstrTableAlias = "null";
     }
 
     /**
